@@ -122,6 +122,7 @@ export class AuthService {
 
   async hashPassword(password: string): Promise<string> {
     const saltRounds = 10;
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     return await bcrypt.hash(password, saltRounds);
   }
 
@@ -129,6 +130,38 @@ export class AuthService {
     password: string,
     hashedPassword: string,
   ): Promise<boolean> {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     return await bcrypt.compare(password, hashedPassword);
+  }
+
+  async validateToken(req: any) {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+    const firebaseUser = req.firebaseUser; // viene del middleware
+
+    const { uid, email, name } = firebaseUser;
+
+    // Buscar usuario por firebaseUuid
+    let user = await this.userRepository.findOne({
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      where: { firebaseUuid: uid },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Usuario no encontrado en base de datos');
+    }
+
+    return {
+      id: user.id,
+      email: user.email,
+      fullname: user.fullName,
+      firebaseUuid: user.firebaseUuid,
+    };
+  }
+
+  async findByFirebaseUid(firebaseUuid: string) {
+    const user = await this.userRepository.findOne({
+      where: { firebaseUuid },
+    });
+    return user; // puede devolver undefined/null si no existe
   }
 }
