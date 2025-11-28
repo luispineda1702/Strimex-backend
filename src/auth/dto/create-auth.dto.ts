@@ -20,8 +20,8 @@ export class CreateAuthDto {
   })
   fullName: string;
 
-  @IsString()
-  firebaseUuid: string;
+  //@IsString()
+  //firebaseUuid: string;
 
   @IsString()
   @MinLength(8)
