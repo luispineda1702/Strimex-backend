@@ -1,17 +1,9 @@
-import { Module } from '@nestjs/common';
-import { FirebaseService } from './firebase.service';
-import * as admin from 'firebase-admin';
+import { Global, Module } from '@nestjs/common';
+import { FirebaseAdminService } from './firebase-admin.service';
 
+@Global()
 @Module({
-  providers: [FirebaseService],
-  exports: [FirebaseService],
+  providers: [FirebaseAdminService],
+  exports: [FirebaseAdminService],
 })
-export class FirebaseModule {
-  constructor() {
-    let serviceAccount = require("../../strimex.json")
-
-    admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount),
-    });
-  }
-}
+export class FirebaseModule {}

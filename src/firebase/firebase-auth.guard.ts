@@ -1,39 +1,53 @@
-// src/auth/firebase-auth.guard.ts
+// src/firebase/firebase-auth.guard.ts
 import {
   CanActivate,
   ExecutionContext,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-import { FirebaseService } from 'src/firebase/firebase.service';
+import { FirebaseAdminService } from './firebase-admin.service';
+import { USER_REPOSITORY } from 'src/domain/repositories/user.repository';
+import { Inject } from '@nestjs/common';
+import type { UserRepository } from 'src/domain/repositories/user.repository';
 
 @Injectable()
 export class FirebaseAuthGuard implements CanActivate {
-  constructor(private readonly firebaseService: FirebaseService) {}
+  constructor(
+    private readonly firebaseAdmin: FirebaseAdminService,
+
+    @Inject(USER_REPOSITORY)
+    private readonly userRepo: UserRepository,
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const req = context.switchToHttp().getRequest();
-    const authHeader = req.headers['authorization'] || req.headers['Authorization'];
+    const request = context.switchToHttp().getRequest();
+
+    const authHeader = request.headers.authorization;
 
     if (!authHeader) {
-      throw new UnauthorizedException('Authorization header missing');
+      throw new UnauthorizedException('Token no proporcionado');
     }
 
-    const token = String(authHeader).startsWith('Bearer ')
-      ? String(authHeader).split(' ')[1]
-      : String(authHeader);
+    const [bearer, token] = authHeader.split(' ');
 
-    if (!token) {
-      throw new UnauthorizedException('Token not provided');
+    if (bearer !== 'Bearer' || !token) {
+      throw new UnauthorizedException('Formato de token inválido');
     }
 
     try {
-      const decoded = await this.firebaseService.verifyIdToken(token);
-      // attach firebase user info to request for downstream controllers/services
-      req.firebaseUser = decoded;
+      const decoded = await this.firebaseAdmin.verifyIdToken(token);
+
+      const user = await this.userRepo.findByFirebaseUid(decoded.uid);
+
+      request.user = {
+        firebaseUid: decoded.uid,
+        email: decoded.email,
+        dbId: user?.id ?? null,
+      };
+
       return true;
     } catch (err) {
-      throw new UnauthorizedException('Invalid token');
+      throw new UnauthorizedException('Token inválido o expirado');
     }
   }
 }

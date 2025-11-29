@@ -1,29 +1,20 @@
+// src/app.module.ts
 import { Module } from '@nestjs/common';
-import { AuthModule } from './auth/auth.module';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { ConfigModule } from '@nestjs/config';
+import { DatabaseModule } from './infrastructure/database/database.module';
 import { FirebaseModule } from './firebase/firebase.module';
+import { AuthModule } from './auth/auth.module';
+import { FavoritesModule } from './favorites/favorites.module';
+import { HomeModule } from './home/home.module';
+import { MediaModule } from './media/media.module';
 
 @Module({
   imports: [
-    AuthModule,
-    ConfigModule.forRoot({
-      isGlobal: true,
-      envFilePath: '.env',
-    }),
-    TypeOrmModule.forRoot({
-      type: 'postgres',
-      host: process.env.DB_HOST,
-      port: +(process.env.DB_PORT ?? '5432'),
-      username: process.env.DB_USERNAME,
-      password: process.env.DB_PASSWORD,
-      database: process.env.DB_NAME,
-      autoLoadEntities: true,
-      synchronize: true,
-    }),
+    DatabaseModule,
     FirebaseModule,
+    AuthModule,
+    FavoritesModule,
+    HomeModule,
+    MediaModule,
   ],
-  controllers: [],
-  providers: [],
 })
 export class AppModule {}

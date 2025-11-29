@@ -1,167 +1,78 @@
-import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
-import { CreateAuthDto } from './dto/create-auth.dto';
-import { UpdateAuthDto } from './dto/update-auth.dto';
-import { InjectRepository } from '@nestjs/typeorm';
-import { User } from './entities/auth.entity';
-import { Repository } from 'typeorm';
-import * as bcrypt from 'bcrypt';
-import { LoginAuthDto } from './dto/login-auth.dto';
-import { FirebaseService } from 'src/firebase/firebase.service';
+// src/auth/auth.service.ts
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+
+import { RegisterUserUseCase } from 'src/aplication/use-cases/register-user.usecase';
+import { GetCurrentUserUseCase } from 'src/aplication/use-cases/get-current-user.usecase';
+import { UpdateUserProfileUseCase } from 'src/aplication/use-cases/update-user.profile.usecase';
+
+import { USER_REPOSITORY } from 'src/domain/repositories/user.repository';
+import type { UserRepository } from 'src/domain/repositories/user.repository';
+
+import { FirebaseAdminService } from 'src/firebase/firebase-admin.service';
 
 @Injectable()
 export class AuthService {
   constructor(
-    @InjectRepository(User)
-    private readonly userRepository: Repository<User>,
-    private readonly firebaseService: FirebaseService,
+    private readonly registerUserUseCase: RegisterUserUseCase,
+    private readonly getCurrentUserUseCase: GetCurrentUserUseCase,
+    private readonly updateUserProfileUseCase: UpdateUserProfileUseCase,
+
+    @Inject(USER_REPOSITORY)
+    private readonly userRepository: UserRepository,
+
+    private readonly jwtService: JwtService,
+    private readonly firebaseAuth: FirebaseAdminService,
   ) {}
-  async register(createAuthDto: CreateAuthDto) {
-    const userExists = await this.findPerEmail(createAuthDto.email);
-    if (!userExists) {
-      const { uid } = await this.firebaseService.create(createAuthDto);
-      const userRegister = this.userRepository.create({
-        email: createAuthDto.email,
-        fullName: createAuthDto.fullName,
-        firebaseUuid: uid,
-        password: '',
-      });
-      await this.userRepository.save(userRegister);
-      return {
-        email: userRegister.email,
-        fullName: userRegister.fullName,
-        id: userRegister.id,
-      };
-    } else {
-      throw new BadRequestException({
-        message: 'El correo electronico ya esta registrado',
-        exists: true,
-      });
+
+  registerFromFirebase(payload: {
+    firebaseUid: string;
+    email: string;
+    name: string;
+    avatarUrl?: string;
+  }) {
+    return this.registerUserUseCase.execute(payload);
+  }
+
+  getCurrentUser(firebaseUid: string) {
+    return this.getCurrentUserUseCase.execute(firebaseUid);
+  }
+
+  async updateProfile(
+    firebaseUid: string,
+    data: { name?: string; avatarUrl?: string },
+  ) {
+    return this.updateUserProfileUseCase.execute({
+      firebaseUid,
+      ...data,
+    });
+  }
+
+  async loginWithFirebase(firebaseToken: string) {
+    const firebaseUser = await this.firebaseAuth.verifyIdToken(firebaseToken);
+
+    if (!firebaseUser.email) {
+      throw new NotFoundException('El usuario de Firebase no tiene email');
     }
-  }
 
-  findAll() {
-    return `This action returns all auth`;
-  }
-
-  async findPerEmail(email: string) {
-    const user = await this.userRepository.findOne({
-      where: { email },
-    });
-    return !!user;
-  }
-
-  async findOne(id: string) {
-    const user = await this.userRepository.findOne({
-      where: { id },
-    });
-    if (user) {
-      return user;
-    } else {
-      throw new BadRequestException({
-        message: 'Usuario no encontrado',
-        exists: false,
-      });
-    }
-  }
-
-  async update(id: string, updateAuthDto: UpdateAuthDto) {
-    const user = await this.userRepository.findOne({
-      where: { id },
-    });
-    if (!user) {
-      throw new NotFoundException(`El usuario con id ${id} no fue encontrado.`);
-    }
-    user.email = updateAuthDto.email || user.email;
-    await this.userRepository.save(user);
-    return user;
-  }
-
-  async remove(id: string) {
-    const user = await this.userRepository.findOne({
-      where: { id },
-    });
-    if (!user) {
-      throw new NotFoundException(`El usuario con id ${id} no fue encontrado.`);
-    }
-    await this.userRepository.remove(user);
-    return { message: `Usuario con id ${id} eliminado correctamente.` };
-  }
-
-  async login(loginAuthDto: LoginAuthDto) {
-    //const hashedPassword = await this.hashPassword(loginAuthDto.password);
-    const user = await this.userRepository.findOne({
-      where: { email: loginAuthDto.email },
-    });
-    if (user) {
-      const isMatchedPassword = await this.comparePassword(
-        loginAuthDto.password,
-        user.password,
-      );
-      if (!isMatchedPassword) {
-        throw new BadRequestException({
-          message: 'Usuario o clave incorrecto',
-          existes: false,
-        });
-      }
-      return {
-        email: user.email,
-        fullName: user.fullName,
-        id: user.id,
-      };
-    } else {
-      throw new BadRequestException({
-        message: 'Usuario o clave incorrecta',
-        exists: false,
-      });
-    }
-  }
-
-  async hashPassword(password: string): Promise<string> {
-    const saltRounds = 10;
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-    return await bcrypt.hash(password, saltRounds);
-  }
-
-  async comparePassword(
-    password: string,
-    hashedPassword: string,
-  ): Promise<boolean> {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-    return await bcrypt.compare(password, hashedPassword);
-  }
-
-  async validateToken(req: any) {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
-    const firebaseUser = req.firebaseUser; // viene del middleware
-
-    const { uid, email, name } = firebaseUser;
-
-    // Buscar usuario por firebaseUuid
-    let user = await this.userRepository.findOne({
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      where: { firebaseUuid: uid },
-    });
+    let user = await this.userRepository.findByFirebaseUid(firebaseUser.uid);
 
     if (!user) {
-      throw new NotFoundException('Usuario no encontrado en base de datos');
+      user = await this.userRepository.create({
+        firebaseUid: firebaseUser.uid,
+        email: firebaseUser.email,
+        name: firebaseUser.email.split('@')[0],
+      });
     }
+
+    const token = this.jwtService.sign({ uid: user.id });
 
     return {
-      id: user.id,
+      token,
       email: user.email,
-      fullname: user.fullName,
-      firebaseUuid: user.firebaseUuid,
+      fullname: user.name,
+      avatar: user.avatar,
+      userId: user.id,
     };
-  }
-
-  async findByFirebaseUid(firebaseUuid: string) {
-    const user = await this.userRepository.findOne({
-      where: { firebaseUuid },
-    });
-    return user; // puede devolver undefined/null si no existe
   }
 }

@@ -55,7 +55,10 @@ report.*.json
 
 # Firebase keys
 strimex.json
+firebase-admin.json
 
 # Docker
 docker-compose.yml
 docker-compose.*.yml
+
+postgres
