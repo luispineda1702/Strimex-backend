@@ -45,6 +45,6 @@ export class TypeOrmUserRepository implements UserRepository {
     user.name = data.name ?? user.name;
     user.avatar = data.avatarUrl ?? user.avatar;
 
-    return this.repo.save(user as User);
+    return this.repo.save(user);
   }
 }

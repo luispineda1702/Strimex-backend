@@ -24,7 +24,7 @@ export class AuthController {
 
     return this.authService.registerFromFirebase({
       firebaseUid,
-      email, 
+      email,
       name: body.name,
       avatarUrl: body.avatarUrl,
     });

@@ -42,6 +42,6 @@ import { FirebaseModule } from 'src/firebase/firebase.module';
     UpdateUserProfileUseCase,
   ],
 
-  exports: [USER_REPOSITORY, AuthService], 
+  exports: [USER_REPOSITORY, AuthService],
 })
 export class AuthModule {}

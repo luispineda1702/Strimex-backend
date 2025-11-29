@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-call */
 // src/firebase/firebase-auth.guard.ts
 import {
   CanActivate,
